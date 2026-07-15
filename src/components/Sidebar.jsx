@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom'
 
 const menus = [
   {
-    title: '🔮 Inteligencia Artificial',
+    title: 'Predicciones',
     items: [
       { to: '/modelo-predictivo', label: 'Modelo Predictivo' },
     ]
@@ -77,10 +77,9 @@ export default function Sidebar() {
                   key={m.to}
                   to={m.to}
                   className={({ isActive }) =>
-                    `rounded-md px-3 py-2 text-sm transition-colors ${
-                      isActive
-                        ? 'bg-tomato-500/15 text-tomato-300 font-medium'
-                        : 'text-semolina-300 hover:bg-oven-700 hover:text-semolina-100'
+                    `rounded-md px-3 py-2 text-sm transition-colors ${isActive
+                      ? 'bg-tomato-500/15 text-tomato-300 font-medium'
+                      : 'text-semolina-300 hover:bg-oven-700 hover:text-semolina-100'
                     }`
                   }
                 >
