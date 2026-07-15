@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Sidebar from './components/Sidebar'
 import PedidosPage from './pages/PedidosPage'
 import VentasPage from './pages/VentasPage'
@@ -24,7 +24,7 @@ import ModeloPredictivoPage from './pages/ModeloPredictivoPage'
 
 function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <div className="flex">
         <Sidebar />
         <main className="min-h-screen flex-1 bg-oven-950 px-8 py-8">
@@ -68,7 +68,7 @@ function App() {
           </Routes>
         </main>
       </div>
-    </BrowserRouter>
+    </HashRouter>
   )
 }
 
