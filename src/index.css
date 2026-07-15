@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+
+@theme {
+  /* Wood-fired oven palette */
+  --color-oven-950: #16110d;
+  --color-oven-900: #1e1712;
+  --color-oven-800: #291f18;
+  --color-oven-700: #392c22;
+  --color-oven-600: #4d3c2e;
+
+  --color-tomato-500: #c1272d;
+  --color-tomato-400: #dc3a3a;
+  --color-tomato-300: #e9847f;
+
+  --color-basil-500: #5b7b4a;
+  --color-basil-400: #7a9c66;
+
+  --color-semolina-100: #f2e8d5;
+  --color-semolina-200: #e6d8bd;
+  --color-semolina-300: #cdbb99;
+  --color-semolina-500: #b8a98e;
+
+  --font-display: "Fraunces", serif;
+  --font-body: "Work Sans", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+body {
+  background-color: var(--color-oven-950);
+  color: var(--color-semolina-100);
+  font-family: var(--font-body);
+}
+
+/* Perforated ticket edge for order cards */
+.ticket-edge {
+  background-image: radial-gradient(circle at 8px 0, transparent 6px, var(--color-oven-950) 6.5px);
+  background-size: 16px 12px;
+  background-repeat: repeat-x;
+  background-position: top;
+  height: 10px;
+}
