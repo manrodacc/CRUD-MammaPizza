@@ -15,10 +15,12 @@ export function useSupabaseTable(table, { select = '*', orderBy, ascending = fal
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  const [totalCount, setTotalCount] = useState(0)
+
   const fetchRows = useCallback(async () => {
     setLoading(true)
     setError(null)
-    let query = supabase.from(table).select(select).limit(1000)
+    let query = supabase.from(table).select(select, { count: 'exact' }).limit(1000)
     if (searchColumn && searchValue) {
       query = query.ilike(searchColumn, `%${searchValue}%`)
     }
@@ -36,11 +38,13 @@ export function useSupabaseTable(table, { select = '*', orderBy, ascending = fal
     
     if (orderBy) query = query.order(orderBy, { ascending })
 
-    const { data, error } = await query
+    const { data, error, count } = await query
     if (error) {
       setError(error)
+      setTotalCount(0)
     } else {
       setRows(data ?? [])
+      setTotalCount(count ?? 0)
     }
     setLoading(false)
   }, [table, select, orderBy, ascending, searchColumn, searchValue, dateFilter?.column, dateFilter?.start, dateFilter?.end])
@@ -69,5 +73,5 @@ export function useSupabaseTable(table, { select = '*', orderBy, ascending = fal
     await fetchRows()
   }, [table, fetchRows])
 
-  return { rows, loading, error, refetch: fetchRows, insertRow, updateRow, deleteRow }
+  return { rows, totalCount, loading, error, refetch: fetchRows, insertRow, updateRow, deleteRow }
 }

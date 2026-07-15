@@ -79,6 +79,7 @@ export default function VentasPage() {
 
   const {
     rows: ventas,
+    totalCount,
     loading,
     error,
     insertRow,
@@ -203,7 +204,10 @@ export default function VentasPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <p className="font-mono text-xs uppercase tracking-widest text-tomato-400">Facturación · Módulo</p>
-          <h1 className="font-display text-3xl text-semolina-100">Ventas</h1>
+          <div className="flex items-baseline gap-3">
+            <h1 className="font-display text-3xl text-semolina-100">Ventas</h1>
+            {!loading && <span className="text-sm font-medium text-semolina-400 bg-oven-800 px-2 py-1 rounded-md">{totalCount} registros en total</span>}
+          </div>
         </div>
         <Button onClick={openCreate}>+ Nueva venta</Button>
       </div>
