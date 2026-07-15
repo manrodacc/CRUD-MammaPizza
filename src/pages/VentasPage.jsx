@@ -36,14 +36,7 @@ function cleanValues(values) {
 const nombreCompleto = (c) => [c.nombres, c.apellido_paterno, c.apellido_materno].filter(Boolean).join(' ')
 
 export default function VentasPage() {
-  const {
-    rows: ventas,
-    loading,
-    error,
-    insertRow,
-    updateRow,
-    deleteRow,
-  } = useSupabaseTable(TABLE, { orderBy: ID_COLUMN, ascending: false })
+  // Se llama a useSupabaseTable más abajo después de definir appliedDateFilter
 
   const { rows: sedes } = useSupabaseTable('sede', { orderBy: 'nombre', ascending: true })
   const { rows: pedidos } = useSupabaseTable('pedido', { orderBy: 'id', ascending: false })
@@ -55,48 +48,51 @@ export default function VentasPage() {
   const [submitting, setSubmitting] = useState(false)
 
   const [dateFilter, setDateFilter] = useState({ start: '', end: '', preset: 'all' })
+  const [appliedDateFilter, setAppliedDateFilter] = useState({ start: '', end: '', preset: 'all' })
 
   const handleDateChange = (field, value) => {
     setDateFilter(prev => ({ ...prev, [field]: value, preset: 'custom' }))
   }
 
+  const handleApplyFilter = () => {
+    setAppliedDateFilter(dateFilter)
+  }
+
   const setQuickFilter = (days, presetName) => {
     if (days === null) {
-      setDateFilter({ start: '', end: '', preset: presetName })
+      const newFilter = { start: '', end: '', preset: presetName }
+      setDateFilter(newFilter)
+      setAppliedDateFilter(newFilter)
       return
     }
     const end = new Date()
     const start = new Date()
     start.setDate(start.getDate() - days)
-    setDateFilter({
+    const newFilter = {
       start: getLocalYMD(start),
       end: getLocalYMD(end),
       preset: presetName
-    })
+    }
+    setDateFilter(newFilter)
+    setAppliedDateFilter(newFilter)
   }
 
-  const filteredVentas = useMemo(() => {
-    if (!ventas) return [];
-    if (!dateFilter.start && !dateFilter.end) return ventas;
-    return ventas.filter(v => {
-      if (!v.fecha_emision) return false;
-      const d = new Date(v.fecha_emision);
-      
-      if (dateFilter.start) {
-        const [sy, sm, sd] = dateFilter.start.split('-').map(Number);
-        const start = new Date(sy, sm - 1, sd, 0, 0, 0);
-        if (d < start) return false;
-      }
-      
-      if (dateFilter.end) {
-        const [ey, em, ed] = dateFilter.end.split('-').map(Number);
-        const end = new Date(ey, em - 1, ed, 23, 59, 59, 999);
-        if (d > end) return false;
-      }
-      
-      return true;
-    });
-  }, [ventas, dateFilter]);
+  const {
+    rows: ventas,
+    loading,
+    error,
+    insertRow,
+    updateRow,
+    deleteRow,
+  } = useSupabaseTable(TABLE, { 
+    orderBy: ID_COLUMN, 
+    ascending: false,
+    dateFilter: {
+      column: 'fecha_emision',
+      start: appliedDateFilter.start,
+      end: appliedDateFilter.end
+    }
+  })
 
   const sedeMap = useMemo(() => Object.fromEntries(sedes.map((s) => [s.id, s.nombre])), [sedes])
   const pedidoMap = useMemo(() => Object.fromEntries(pedidos.map((p) => [p.id, `#${p.id}`])), [pedidos])
@@ -269,6 +265,9 @@ export default function VentasPage() {
                 value={dateFilter.end}
                 onChange={(e) => handleDateChange('end', e.target.value)}
               />
+              <Button onClick={handleApplyFilter} variant="solid" className="ml-2">
+                Filtrar
+              </Button>
             </div>
           </div>
         </div>
@@ -276,7 +275,7 @@ export default function VentasPage() {
 
       <CrudTable
         columns={columns}
-        rows={filteredVentas}
+        rows={ventas}
         loading={loading}
         error={error}
         onEdit={openEdit}

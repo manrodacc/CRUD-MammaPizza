@@ -10,7 +10,7 @@ import { supabase } from '../lib/supabaseClient'
  * @param {string} options.orderBy - columna por la que ordenar
  * @param {boolean} options.ascending - orden ascendente/descendente
  */
-export function useSupabaseTable(table, { select = '*', orderBy, ascending = false, searchColumn, searchValue } = {}) {
+export function useSupabaseTable(table, { select = '*', orderBy, ascending = false, searchColumn, searchValue, dateFilter } = {}) {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -22,6 +22,18 @@ export function useSupabaseTable(table, { select = '*', orderBy, ascending = fal
     if (searchColumn && searchValue) {
       query = query.ilike(searchColumn, `%${searchValue}%`)
     }
+    
+    if (dateFilter && dateFilter.column) {
+      if (dateFilter.start) {
+        const startStr = new Date(`${dateFilter.start}T00:00:00`).toISOString()
+        query = query.gte(dateFilter.column, startStr)
+      }
+      if (dateFilter.end) {
+        const endStr = new Date(`${dateFilter.end}T23:59:59.999`).toISOString()
+        query = query.lte(dateFilter.column, endStr)
+      }
+    }
+    
     if (orderBy) query = query.order(orderBy, { ascending })
 
     const { data, error } = await query
@@ -31,7 +43,7 @@ export function useSupabaseTable(table, { select = '*', orderBy, ascending = fal
       setRows(data ?? [])
     }
     setLoading(false)
-  }, [table, select, orderBy, ascending, searchColumn, searchValue])
+  }, [table, select, orderBy, ascending, searchColumn, searchValue, dateFilter?.column, dateFilter?.start, dateFilter?.end])
 
   useEffect(() => {
     fetchRows()
