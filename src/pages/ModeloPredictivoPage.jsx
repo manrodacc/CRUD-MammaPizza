@@ -99,16 +99,31 @@ export default function ModeloPredictivoPage() {
   const [lastRefresh, setLastRefresh] = useState(null)
   const [refreshCount, setRefreshCount] = useState(0)
 
+  // ── Predicción de Demanda por Horizonte ──
+  const [horizonte, setHorizonte] = useState('dia') // 'dia' | 'semana' | 'mes'
+  const [prediccionProductos, setPrediccionProductos] = useState([])
+  const [selectedProductIds, setSelectedProductIds] = useState(new Set())
+  const [recetasData, setRecetasData] = useState([])
+  const [insumosMap, setInsumosMap] = useState({})
+  const [unidadMap, setUnidadMap] = useState({})
+  const [loadingPrediccion, setLoadingPrediccion] = useState(false)
+
   /* ─── fetch de datos auxiliares ─── */
   const fetchMaps = useCallback(async () => {
-    const [prodRes, catRes, canalRes] = await Promise.all([
+    const [prodRes, catRes, canalRes, recetaRes, insumoRes, unidadRes] = await Promise.all([
       supabase.from('producto').select('id, nombre, categoria'),
       supabase.from('categoria_producto').select('id, nombre'),
       supabase.from('canal_origen').select('id, nombre'),
+      supabase.from('receta').select('id, producto, insumo, cantidad, unidad_medida'),
+      supabase.from('insumo').select('id, nombre, unidad_medida'),
+      supabase.from('unidad_medida').select('id, nombre'),
     ])
     if (prodRes.data) setProductoMap(Object.fromEntries(prodRes.data.map(p => [p.id, p])))
     if (catRes.data) setCategoriaMap(Object.fromEntries(catRes.data.map(c => [c.id, c.nombre])))
     if (canalRes.data) setCanalMap(Object.fromEntries(canalRes.data.map(c => [c.id, c.nombre])))
+    if (recetaRes.data) setRecetasData(recetaRes.data)
+    if (insumoRes.data) setInsumosMap(Object.fromEntries(insumoRes.data.map(i => [i.id, i])))
+    if (unidadRes.data) setUnidadMap(Object.fromEntries(unidadRes.data.map(u => [u.id, u.nombre])))
   }, [])
 
   /* ─── helper: fetch paginado para traer TODOS los registros ─── */
@@ -404,6 +419,131 @@ export default function ModeloPredictivoPage() {
     ]
   }, [])
 
+  /* ─── Predicción de demanda por horizonte (consulta BD) ─── */
+  const fetchPrediccionDemanda = useCallback(async (h) => {
+    setLoadingPrediccion(true)
+    try {
+      // 1. Traer todos los detalles de venta con fecha
+      const { data: detalles, error: e1 } = await supabase
+        .from('detalle_venta')
+        .select('producto, cantidad_facturada, venta!inner(fecha_emision)')
+        .limit(5000)
+      if (e1) throw e1
+      if (!detalles || detalles.length === 0) {
+        setPrediccionProductos([])
+        setLoadingPrediccion(false)
+        return
+      }
+
+      // 2. Contar días/semanas/meses distintos para promediar
+      const periodSet = new Set()
+      const productoAcum = {}
+
+      for (const det of detalles) {
+        const fecha = det.venta?.fecha_emision
+        if (!fecha) continue
+        const d = new Date(fecha)
+        let periodoKey
+        if (h === 'dia') {
+          periodoKey = fecha.split('T')[0]
+        } else if (h === 'semana') {
+          // ISO week: year-Wnn
+          const onejan = new Date(d.getFullYear(), 0, 1)
+          const weekNum = Math.ceil(((d - onejan) / 86400000 + onejan.getDay() + 1) / 7)
+          periodoKey = `${d.getFullYear()}-W${weekNum}`
+        } else {
+          periodoKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+        }
+        periodSet.add(periodoKey)
+
+        const pid = det.producto
+        if (!productoAcum[pid]) productoAcum[pid] = 0
+        productoAcum[pid] += Number(det.cantidad_facturada) || 0
+      }
+
+      const totalPeriodos = periodSet.size || 1
+
+      // 3. Calcular promedio por periodo para cada producto
+      const ranking = Object.entries(productoAcum)
+        .map(([id, totalCant]) => ({
+          producto_id: Number(id),
+          nombre: productoMap[Number(id)]?.nombre || `Producto #${id}`,
+          total_historico: Math.round(totalCant),
+          promedio_periodo: Math.round((totalCant / totalPeriodos) * 10) / 10,
+        }))
+        .sort((a, b) => b.promedio_periodo - a.promedio_periodo)
+
+      setPrediccionProductos(ranking)
+      setSelectedProductIds(new Set())
+    } catch (err) {
+      console.error('Error predicción demanda:', err)
+    } finally {
+      setLoadingPrediccion(false)
+    }
+  }, [productoMap])
+
+  // Recalcular cuando cambia horizonte o productoMap
+  useEffect(() => {
+    if (Object.keys(productoMap).length > 0) {
+      fetchPrediccionDemanda(horizonte)
+    }
+  }, [horizonte, productoMap, fetchPrediccionDemanda])
+
+  // Toggle selección de producto
+  const toggleProducto = (pid) => {
+    setSelectedProductIds(prev => {
+      const next = new Set(prev)
+      if (next.has(pid)) next.delete(pid)
+      else next.add(pid)
+      return next
+    })
+  }
+
+  const toggleAll = () => {
+    if (selectedProductIds.size === prediccionProductos.length) {
+      setSelectedProductIds(new Set())
+    } else {
+      setSelectedProductIds(new Set(prediccionProductos.map(p => p.producto_id)))
+    }
+  }
+
+  // Calcular insumos necesarios
+  const insumosNecesarios = useMemo(() => {
+    if (selectedProductIds.size === 0 || !recetasData.length) return []
+    const acum = {} // insumo_id -> { nombre, cantidad, unidad }
+
+    for (const pid of selectedProductIds) {
+      const prod = prediccionProductos.find(p => p.producto_id === pid)
+      if (!prod) continue
+      const cantidadPredicha = prod.promedio_periodo
+
+      // Buscar recetas de este producto
+      const recetasProducto = recetasData.filter(r => r.producto === pid)
+      for (const rec of recetasProducto) {
+        const insumoId = rec.insumo
+        const cantPorUnidad = Number(rec.cantidad) || 0
+        const totalNecesario = cantPorUnidad * cantidadPredicha
+
+        if (!acum[insumoId]) {
+          const insumo = insumosMap[insumoId]
+          acum[insumoId] = {
+            insumo_id: insumoId,
+            nombre: insumo?.nombre || `Insumo #${insumoId}`,
+            unidad: unidadMap[rec.unidad_medida] || unidadMap[insumo?.unidad_medida] || '?',
+            cantidad: 0,
+          }
+        }
+        acum[insumoId].cantidad += totalNecesario
+      }
+    }
+
+    return Object.values(acum)
+      .map(i => ({ ...i, cantidad: Math.round(i.cantidad * 100) / 100 }))
+      .sort((a, b) => b.cantidad - a.cantidad)
+  }, [selectedProductIds, prediccionProductos, recetasData, insumosMap, unidadMap])
+
+  const horizonteLabel = { dia: 'un día', semana: 'una semana', mes: 'un mes' }
+
   /* ═══════════════════════════════════════
      RENDER
      ═══════════════════════════════════════ */
@@ -506,6 +646,150 @@ export default function ModeloPredictivoPage() {
           </div>
         </div>
       )}
+
+      {/* ══════════ PREDICCIÓN DE DEMANDA POR HORIZONTE ══════════ */}
+      <div className="mb-6 rounded-xl border-2 border-purple-500/30 bg-gradient-to-br from-purple-900/20 via-oven-900/50 to-oven-950/80 p-6 shadow-lg">
+        <div className="flex items-center gap-3 mb-5">
+          <span className="text-3xl">📊</span>
+          <div>
+            <h3 className="font-display text-xl text-semolina-100">Predicción de Demanda por Producto</h3>
+            <p className="text-xs text-semolina-500">Selecciona un horizonte y los productos para calcular insumos necesarios</p>
+          </div>
+        </div>
+
+        {/* Selector de horizonte */}
+        <div className="flex items-center gap-3 mb-5">
+          <span className="text-sm text-semolina-400 font-mono">Horizonte:</span>
+          {[{key:'dia', label:'📅 Día'}, {key:'semana', label:'📆 Semana'}, {key:'mes', label:'🗓️ Mes'}].map(h => (
+            <button
+              key={h.key}
+              onClick={() => setHorizonte(h.key)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                horizonte === h.key
+                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20 ring-1 ring-purple-400'
+                  : 'bg-oven-800 text-semolina-400 hover:bg-oven-700 hover:text-semolina-200 border border-oven-600'
+              }`}
+            >
+              {h.label}
+            </button>
+          ))}
+        </div>
+
+        {loadingPrediccion ? (
+          <div className="flex items-center justify-center py-10">
+            <div className="w-8 h-8 border-3 border-purple-500 border-t-transparent rounded-full animate-spin" />
+            <span className="ml-3 text-sm text-semolina-400">Calculando predicción...</span>
+          </div>
+        ) : prediccionProductos.length === 0 ? (
+          <p className="text-center text-semolina-500 py-8">No hay datos históricos suficientes para predecir.</p>
+        ) : (
+          <>
+            {/* Tabla de productos predichos */}
+            <div className="mb-5">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-semolina-200">Ranking de productos — promedio por {horizonteLabel[horizonte]}</h4>
+                <button
+                  onClick={toggleAll}
+                  className="text-xs text-purple-400 hover:text-purple-300 transition-colors underline underline-offset-2"
+                >
+                  {selectedProductIds.size === prediccionProductos.length ? 'Deseleccionar todo' : 'Seleccionar todo'}
+                </button>
+              </div>
+              <div className="rounded-lg border border-oven-700 overflow-hidden max-h-80 overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-oven-800 sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2.5 text-left text-xs font-mono text-semolina-500 uppercase w-10">✓</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-mono text-semolina-500 uppercase">#</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-mono text-semolina-500 uppercase">Producto</th>
+                      <th className="px-3 py-2.5 text-right text-xs font-mono text-semolina-500 uppercase">Total Hist.</th>
+                      <th className="px-3 py-2.5 text-right text-xs font-mono text-semolina-500 uppercase">Predicción/{horizonte === 'dia' ? 'día' : horizonte === 'semana' ? 'sem' : 'mes'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {prediccionProductos.map((p, i) => (
+                      <tr
+                        key={p.producto_id}
+                        onClick={() => toggleProducto(p.producto_id)}
+                        className={`cursor-pointer border-t border-oven-800 transition-colors ${
+                          selectedProductIds.has(p.producto_id)
+                            ? 'bg-purple-900/30 hover:bg-purple-900/40'
+                            : 'hover:bg-oven-800/50'
+                        }`}
+                      >
+                        <td className="px-3 py-2">
+                          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                            selectedProductIds.has(p.producto_id)
+                              ? 'border-purple-400 bg-purple-500'
+                              : 'border-oven-600 bg-oven-900'
+                          }`}>
+                            {selectedProductIds.has(p.producto_id) && (
+                              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-semolina-500 font-mono text-xs">{i + 1}</td>
+                        <td className="px-3 py-2 text-semolina-200 font-medium">{p.nombre}</td>
+                        <td className="px-3 py-2 text-right text-semolina-400">{p.total_historico.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right">
+                          <span className="inline-flex items-center rounded-full bg-purple-500/20 px-2.5 py-0.5 text-xs font-semibold text-purple-300">
+                            {p.promedio_periodo} uds
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Tabla de insumos necesarios */}
+            {selectedProductIds.size > 0 && (
+              <div className="mt-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xl">🧪</span>
+                  <h4 className="text-sm font-semibold text-semolina-200">
+                    Insumos necesarios para {horizonteLabel[horizonte]}
+                    <span className="ml-2 text-xs font-normal text-semolina-500">({selectedProductIds.size} producto{selectedProductIds.size > 1 ? 's' : ''} seleccionado{selectedProductIds.size > 1 ? 's' : ''})</span>
+                  </h4>
+                </div>
+                {insumosNecesarios.length === 0 ? (
+                  <p className="text-sm text-semolina-500 bg-oven-950/50 rounded-lg p-4 border border-oven-700">
+                    ⚠️ No hay recetas registradas para los productos seleccionados. Registra recetas primero.
+                  </p>
+                ) : (
+                  <div className="rounded-lg border border-oven-700 overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-oven-800">
+                        <tr>
+                          <th className="px-4 py-2.5 text-left text-xs font-mono text-semolina-500 uppercase">Insumo</th>
+                          <th className="px-4 py-2.5 text-right text-xs font-mono text-semolina-500 uppercase">Cantidad Necesaria</th>
+                          <th className="px-4 py-2.5 text-right text-xs font-mono text-semolina-500 uppercase">Unidad</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {insumosNecesarios.map((ins) => (
+                          <tr key={ins.insumo_id} className="border-t border-oven-800 hover:bg-oven-800/30 transition-colors">
+                            <td className="px-4 py-2.5 text-semolina-200 font-medium">{ins.nombre}</td>
+                            <td className="px-4 py-2.5 text-right">
+                              <span className="inline-flex items-center rounded-full bg-teal-500/20 px-3 py-0.5 text-xs font-bold text-teal-300">
+                                {ins.cantidad.toLocaleString()}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2.5 text-right text-semolina-400">{ins.unidad}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       {/* Gráfico principal: serie temporal + predicción */}
       <Section title="Serie Temporal de Demanda + Predicción" subtitle="Cantidad vendida por mes con proyección al siguiente periodo (línea discontinua)">
