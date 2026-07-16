@@ -7,19 +7,19 @@ import {
 } from 'recharts'
 
 /* ───────── colores del tema ───────── */
-const TOMATO   = '#e53e3e'
-const TOMATO2  = '#fc8181'
-const GOLD     = '#ecc94b'
-const TEAL     = '#38b2ac'
-const PURPLE   = '#805ad5'
-const BLUE     = '#4299e1'
-const GREEN    = '#48bb78'
-const ORANGE   = '#ed8936'
-const PINK     = '#ed64a6'
+const TOMATO = '#e53e3e'
+const TOMATO2 = '#fc8181'
+const GOLD = '#ecc94b'
+const TEAL = '#38b2ac'
+const PURPLE = '#805ad5'
+const BLUE = '#4299e1'
+const GREEN = '#48bb78'
+const ORANGE = '#ed8936'
+const PINK = '#ed64a6'
 const PIE_COLORS = [TOMATO, GOLD, TEAL, PURPLE, BLUE, GREEN, ORANGE, PINK, TOMATO2]
 
 const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
-const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
 /* ───────── helpers ───────── */
 function dateToDiaSemana(dateStr) {
@@ -172,7 +172,7 @@ export default function ModeloPredictivoPage() {
         if (!venta || !venta.fecha_emision) continue
         const pedido = pedidoMap[venta.pedido]
         if (!pedido) continue
-        
+
         const fecha = venta.fecha_emision.split('T')[0]
         assembled.push({
           fecha,
@@ -660,15 +660,14 @@ export default function ModeloPredictivoPage() {
         {/* Selector de horizonte */}
         <div className="flex items-center gap-3 mb-5">
           <span className="text-sm text-semolina-400 font-mono">Horizonte:</span>
-          {[{key:'dia', label:'📅 Día'}, {key:'semana', label:'📆 Semana'}, {key:'mes', label:'🗓️ Mes'}].map(h => (
+          {[{ key: 'dia', label: '📅 Día' }, { key: 'semana', label: '📆 Semana' }, { key: 'mes', label: '🗓️ Mes' }].map(h => (
             <button
               key={h.key}
               onClick={() => setHorizonte(h.key)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                horizonte === h.key
-                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20 ring-1 ring-purple-400'
-                  : 'bg-oven-800 text-semolina-400 hover:bg-oven-700 hover:text-semolina-200 border border-oven-600'
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${horizonte === h.key
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20 ring-1 ring-purple-400'
+                : 'bg-oven-800 text-semolina-400 hover:bg-oven-700 hover:text-semolina-200 border border-oven-600'
+                }`}
             >
               {h.label}
             </button>
@@ -711,18 +710,16 @@ export default function ModeloPredictivoPage() {
                       <tr
                         key={p.producto_id}
                         onClick={() => toggleProducto(p.producto_id)}
-                        className={`cursor-pointer border-t border-oven-800 transition-colors ${
-                          selectedProductIds.has(p.producto_id)
-                            ? 'bg-purple-900/30 hover:bg-purple-900/40'
-                            : 'hover:bg-oven-800/50'
-                        }`}
+                        className={`cursor-pointer border-t border-oven-800 transition-colors ${selectedProductIds.has(p.producto_id)
+                          ? 'bg-purple-900/30 hover:bg-purple-900/40'
+                          : 'hover:bg-oven-800/50'
+                          }`}
                       >
                         <td className="px-3 py-2">
-                          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
-                            selectedProductIds.has(p.producto_id)
-                              ? 'border-purple-400 bg-purple-500'
-                              : 'border-oven-600 bg-oven-900'
-                          }`}>
+                          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${selectedProductIds.has(p.producto_id)
+                            ? 'border-purple-400 bg-purple-500'
+                            : 'border-oven-600 bg-oven-900'
+                            }`}>
                             {selectedProductIds.has(p.producto_id) && (
                               <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -935,19 +932,6 @@ export default function ModeloPredictivoPage() {
           </div>
         </div>
       </Section>
-
-      {/* Nota metodológica */}
-      <div className="rounded-xl border border-oven-700 bg-oven-900/30 p-5 text-xs text-semolina-500 leading-relaxed">
-        <p className="font-semibold text-semolina-300 mb-2">📘 Nota Metodológica</p>
-        <p>
-          Este panel implementa el análisis descrito en el <em>Informe de Justificación del uso de Random Forest
-          para la predicción de demanda (APA 7ª ed.)</em>. El modelo utiliza variables temporales (día de semana,
-          mes, año, fin de semana), comerciales (canal de origen) y de producto (categoría, precio histórico ponderado)
-          para predecir la cantidad vendida. La predicción mostrada utiliza una media móvil de 3 periodos como
-          estimación conservadora. Para un modelo completo con scikit-learn y validación temporal, consulte
-          el código Python del apéndice C del informe.
-        </p>
-      </div>
     </div>
   )
 }
