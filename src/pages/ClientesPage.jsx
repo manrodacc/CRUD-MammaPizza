@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useSupabaseTable } from '../hooks/useSupabaseTable'
 import CrudTable from '../components/CrudTable'
 import CrudForm from '../components/CrudForm'
@@ -20,6 +20,14 @@ const nombreCompleto = (c) => [c.nombres, c.apellido_paterno, c.apellido_materno
 const formatDireccion = (d) => [d.calle, d.numero, d.distrito].filter(Boolean).join(', ')
 
 export default function ClientesPage() {
+  const [textFilter, setTextFilter] = useState('')
+  const [debouncedFilter, setDebouncedFilter] = useState('')
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedFilter(textFilter), 300)
+    return () => clearTimeout(timer)
+  }, [textFilter])
+
   const {
     rows: clientes,
     loading,
@@ -27,7 +35,12 @@ export default function ClientesPage() {
     insertRow,
     updateRow,
     deleteRow,
-  } = useSupabaseTable(TABLE, { orderBy: 'nombres', ascending: true })
+  } = useSupabaseTable(TABLE, { 
+    orderBy: 'nombres', 
+    ascending: true,
+    searchColumn: ['nombres', 'apellido_paterno', 'apellido_materno', 'num_documento'],
+    searchValue: debouncedFilter
+  })
 
   const { rows: tiposDocumento } = useSupabaseTable('tipo_documento')
   const { rows: direcciones } = useSupabaseTable('direccion')
@@ -36,18 +49,7 @@ export default function ClientesPage() {
   const [editingRow, setEditingRow] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   
-  const [textFilter, setTextFilter] = useState('')
 
-  const filteredClientes = useMemo(() => {
-    if (!clientes) return []
-    if (!textFilter.trim()) return clientes
-    const lower = textFilter.toLowerCase()
-    return clientes.filter(c => {
-      const full = nombreCompleto(c).toLowerCase()
-      const doc = c.num_documento?.toLowerCase() || ''
-      return full.includes(lower) || doc.includes(lower)
-    })
-  }, [clientes, textFilter])
 
   const tipoDocMap = useMemo(() => Object.fromEntries(tiposDocumento.map((t) => [t.id, t.nombre])), [tiposDocumento])
   const direccionMap = useMemo(() => Object.fromEntries(direcciones.map((d) => [d.id, formatDireccion(d)])), [direcciones])
@@ -79,7 +81,7 @@ export default function ClientesPage() {
     {
       key: 'direccion',
       label: 'Dirección',
-      type: 'select',
+      type: 'searchable-select',
       options: direcciones.map((d) => ({ value: d.id, label: formatDireccion(d) || `Dir #${d.id}` })),
     },
   ]
@@ -167,7 +169,7 @@ export default function ClientesPage() {
 
       <CrudTable
         columns={columns}
-        rows={filteredClientes}
+        rows={clientes}
         loading={loading}
         error={error}
         onEdit={openEdit}

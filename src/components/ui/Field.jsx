@@ -30,3 +30,70 @@ export function SelectInput({ children, ...props }) {
     </select>
   )
 }
+
+import { useState, useEffect, useRef } from 'react'
+
+export function SearchableSelect({ options = [], value, onChange, placeholder = 'Selecciona...', required }) {
+  const [search, setSearch] = useState('')
+  const [open, setOpen] = useState(false)
+  const wrapperRef = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const selectedOption = options.find(o => String(o.value) === String(value))
+  const displayValue = open ? search : (selectedOption ? selectedOption.label : '')
+
+  const filteredOptions = options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
+
+  return (
+    <div ref={wrapperRef} className="relative w-full">
+      <input
+        type="text"
+        className={baseInputClasses}
+        placeholder={placeholder}
+        required={required && !value}
+        value={displayValue}
+        onChange={e => {
+          setSearch(e.target.value)
+          if (!open) setOpen(true)
+          if (value) {
+             onChange({ target: { value: '' } })
+          }
+        }}
+        onClick={() => {
+          setOpen(true)
+          setSearch('')
+        }}
+      />
+      {open && (
+        <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md border border-oven-600 bg-oven-900 shadow-lg">
+          {filteredOptions.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-semolina-500">No hay resultados</div>
+          ) : (
+            filteredOptions.map(opt => (
+              <div
+                key={opt.value}
+                className="cursor-pointer px-3 py-2 text-sm text-semolina-100 hover:bg-tomato-500 hover:text-white"
+                onClick={() => {
+                  onChange({ target: { value: opt.value } })
+                  setSearch('')
+                  setOpen(false)
+                }}
+              >
+                {opt.label}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

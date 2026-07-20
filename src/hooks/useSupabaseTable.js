@@ -22,7 +22,12 @@ export function useSupabaseTable(table, { select = '*', orderBy, ascending = fal
     setError(null)
     let query = supabase.from(table).select(select, { count: 'exact' }).limit(1000)
     if (searchColumn && searchValue) {
-      query = query.ilike(searchColumn, `%${searchValue}%`)
+      if (Array.isArray(searchColumn)) {
+        const orConditions = searchColumn.map(col => `${col}.ilike.%${searchValue}%`).join(',')
+        query = query.or(orConditions)
+      } else {
+        query = query.ilike(searchColumn, `%${searchValue}%`)
+      }
     }
     
     if (dateFilter && dateFilter.column) {

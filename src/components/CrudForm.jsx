@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import Field, { TextInput, TextArea, SelectInput } from './ui/Field'
+import Field, { TextInput, TextArea, SelectInput, SearchableSelect } from './ui/Field'
 import Button from './ui/Button'
 
 /**
@@ -31,7 +31,14 @@ export default function CrudForm({ fields, initialValues, onSubmit, onCancel, su
       <div className="flex-1 space-y-4">
         {fields.map((field) => (
           <Field key={field.key} label={field.label} required={field.required} hint={field.hint}>
-            {field.type === 'select' ? (
+            {field.type === 'searchable-select' ? (
+              <SearchableSelect
+                required={field.required}
+                value={values[field.key] ?? ''}
+                options={field.options}
+                onChange={(e) => setField(field.key, e.target.value)}
+              />
+            ) : field.type === 'select' ? (
               <SelectInput
                 required={field.required}
                 value={values[field.key] ?? ''}
