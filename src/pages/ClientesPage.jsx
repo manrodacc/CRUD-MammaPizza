@@ -19,6 +19,8 @@ function cleanValues(values) {
 const nombreCompleto = (c) => [c.nombres, c.apellido_paterno, c.apellido_materno].filter(Boolean).join(' ')
 const formatDireccion = (d) => [d.calle, d.numero, d.distrito].filter(Boolean).join(', ')
 
+const SEARCH_COLUMNS = ['nombres', 'apellido_paterno', 'apellido_materno', 'num_documento']
+
 export default function ClientesPage() {
   const [textFilter, setTextFilter] = useState('')
   const [debouncedFilter, setDebouncedFilter] = useState('')
@@ -38,7 +40,7 @@ export default function ClientesPage() {
   } = useSupabaseTable(TABLE, { 
     orderBy: 'nombres', 
     ascending: true,
-    searchColumn: ['nombres', 'apellido_paterno', 'apellido_materno', 'num_documento'],
+    searchColumn: SEARCH_COLUMNS,
     searchValue: debouncedFilter
   })
 
